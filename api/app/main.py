@@ -16,6 +16,7 @@ from common.models import Image, AnalysisResult, ImageStatus
 from common.verdict import compute_verdict
 from .schemas import UploadResponse, StatusResponse, ResultsResponse, CheckResult
 from .queue import image_queue
+from worker.tasks import process_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gogig-api")
@@ -93,11 +94,11 @@ async def upload_image(request: Request, file: UploadFile = File(...), db: Sessi
     db.commit()
 
     image_queue.enqueue(
-        "worker.tasks.process_image",
-        str(image_id),
-        job_timeout=120,
-        retry=Retry(max=2, interval=[10, 30]),
-    )
+    process_image,
+    str(image_id),
+    job_timeout=120,
+    retry=Retry(max=2, interval=[10, 30]),
+)
     logger.info(f"Enqueued image {image_id} for analysis")
 
     return UploadResponse(image_id=image_id, status=image.status.value)
