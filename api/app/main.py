@@ -20,7 +20,7 @@ from .queue import image_queue
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gogig-api")
 
-STORAGE_DIR = os.getenv("STORAGE_DIR", "/storage")
+STORAGE_DIR = os.getenv("STORAGE_DIR", "/tmp/storage")
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
