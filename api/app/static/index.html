@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vehicle Image Analysis — gOGig</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-alt: #f8f9fb;
+  --border: #e3e5e8;
+
+  --text: #111214;
+  --text-muted: #68707d;
+  --text-faint: #9aa1ab;
+
+  --accent: #ff6500;
+  --accent-hover: #e65300;
+  --accent-soft: #fff0e6;
+
+  --success: #159447;
+  --success-soft: #eaf8ef;
+
+  --warning: #c47a05;
+  --warning-soft: #fff7df;
+
+  --danger: #d93426;
+  --danger-soft: #fff0ee;
+
+  --radius: 12px;
+
+  --shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 14px 40px rgba(15, 23, 42, 0.10);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 101, 0, 0.035), transparent 30%),
+    var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* =========================
+   BRAND STRIP
+========================= */
+
+.brand-strip {
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    #ff6500 0%,
+    #ff7d2b 50%,
+    #ffb27a 100%
+  );
+}
+
+/* =========================
+   TOP NAVIGATION
+========================= */
+
+.topbar {
+  height: 68px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--border);
+  padding: 0 34px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  position: sticky;
+  top: 0;
+  z-index: 20;
+
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+
+  background: var(--accent);
+  color: white;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 4px 12px rgba(255, 101, 0, 0.25);
+}
+
+.brand-text-group {
+  line-height: 1.2;
+}
+
+.brand-title {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.brand-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  color: #3f4752;
+  background: #f5f6f7;
+
+  border: 1px solid var(--border);
+
+  padding: 7px 13px;
+  border-radius: 999px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+
+  box-shadow: 0 0 0 4px rgba(21, 148, 71, 0.10);
+}
+
+/* =========================
+   MAIN DASHBOARD
+========================= */
+
+.layout {
+  width: min(1320px, calc(100% - 48px));
+  margin: 0 auto;
+
+  padding: 24px 0 40px;
+
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 20px;
+
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    width: calc(100% - 28px);
+    grid-template-columns: 1fr;
+    padding: 18px 0 30px;
+  }
+}
+
+/* =========================
+   CARDS
+========================= */
+
+.card {
+  background: var(--surface);
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+
+  box-shadow: var(--shadow-md);
+
+  padding: 18px;
+
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+
+  left: 0;
+  top: 0;
+
+  width: 3px;
+  height: 100%;
+
+  background: var(--accent);
+
+  opacity: 0.9;
+}
+
+.card + .card {
+  margin-top: 14px;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 4px;
+}
+
+.card-title-icon {
+  width: 28px;
+  height: 28px;
+
+  border-radius: 8px;
+
+  background: var(--accent-soft);
+  color: var(--accent);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.card-title {
+  font-family: 'Poppins', 'Inter', sans-serif;
+
+  font-size: 14px;
+  font-weight: 700;
+
+  color: var(--text);
+
+  margin: 0;
+}
+
+.card-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+
+  margin: 5px 0 13px;
+
+  line-height: 1.5;
+}
+
+/* =========================
+   UPLOAD AREA
+========================= */
+
+.dropzone {
+  display: block;
+
+  border: 1.5px dashed #d3d7dc;
+
+  border-radius: 10px;
+
+  padding: 24px 14px;
+
+  text-align: center;
+
+  cursor: pointer;
+
+  background: #fafbfc;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.dropzone:hover,
+.dropzone.drag-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  transform: translateY(-1px);
+}
+
+.dropzone:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dropzone-icon {
+  width: 42px;
+  height: 42px;
+
+  margin: 0 auto 10px;
+
+  border-radius: 12px;
+
+  background: var(--accent-soft);
+  color: var(--accent);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.dropzone-text {
+  font-size: 13px;
+  font-weight: 600;
+
+  color: var(--text);
+
+  margin-bottom: 4px;
+}
+
+.dropzone-subtext {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.dropzone input[type="file"] {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+  overflow: hidden;
+}
+
+.camera-link {
+  display: block;
+
+  text-align: center;
+
+  margin-top: 10px;
+
+  font-size: 11.5px;
+  color: var(--accent);
+
+  font-weight: 600;
+
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.camera-link:hover {
+  text-decoration: underline;
+}
+
+.camera-link input[type="file"] {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+  overflow: hidden;
+}
+
+/* =========================
+   UPLOAD STATUS
+========================= */
+
+.upload-status {
+  margin-top: 12px;
+
+  font-size: 12px;
+
+  padding: 9px 11px;
+
+  border-radius: 8px;
+
+  display: none;
+
+  font-weight: 600;
+}
+
+.upload-status.show {
+  display: block;
+}
+
+.upload-status.info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.upload-status.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* =========================
+   LOOKUP
+========================= */
+
+.field-label {
+  display: block;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  color: var(--text-muted);
+
+  margin-bottom: 5px;
+}
+
+.text-input {
+  width: 100%;
+
+  padding: 10px 11px;
+
+  border: 1px solid var(--border);
+  border-radius: 8px;
+
+  background: #fafbfc;
+
+  font-size: 12px;
+  color: var(--text);
+
+  font-family: inherit;
+
+  margin-bottom: 9px;
+
+  transition: 0.2s ease;
+}
+
+.text-input:focus {
+  outline: none;
+
+  background: white;
+
+  border-color: var(--accent);
+
+  box-shadow: 0 0 0 3px rgba(255, 101, 0, 0.10);
+}
+
+.btn-secondary {
+  width: 100%;
+
+  padding: 10px 12px;
+
+  background: var(--text);
+  color: white;
+
+  border: none;
+  border-radius: 8px;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition: 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--accent);
+
+  transform: translateY(-1px);
+
+  box-shadow: 0 5px 14px rgba(255, 101, 0, 0.20);
+}
+
+.sync-msg {
+  font-size: 10.5px;
+
+  color: var(--text-faint);
+
+  margin-top: 10px;
+}
+
+.recent-list {
+  margin-top: 11px;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+}
+
+.recent-chip {
+  font-size: 10.5px;
+
+  font-family: ui-monospace, 'SF Mono', monospace;
+
+  color: var(--text-muted);
+
+  background: #f6f7f8;
+
+  border: 1px solid var(--border);
+
+  padding: 7px 9px;
+
+  border-radius: 7px;
+
+  cursor: pointer;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  transition: 0.15s ease;
+}
+
+.recent-chip:hover {
+  border-color: var(--accent);
+
+  color: var(--accent);
+
+  background: var(--accent-soft);
+}
+
+/* =========================
+   RESULTS PANEL
+========================= */
+
+.results-card {
+  min-height: 560px;
+
+  display: flex;
+  flex-direction: column;
+
+  padding: 22px;
+}
+
+.results-empty {
+  flex: 1;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+
+  min-height: 500px;
+}
+
+.results-empty-inner {
+  max-width: 360px;
+}
+
+.results-empty-icon {
+  width: 62px;
+  height: 62px;
+
+  margin: 0 auto 15px;
+
+  border-radius: 18px;
+
+  background: var(--accent-soft);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 25px;
+
+  color: var(--accent);
+
+  box-shadow: 0 8px 20px rgba(255, 101, 0, 0.08);
+}
+
+.results-empty-title {
+  font-size: 15px;
+
+  font-weight: 700;
+
+  margin-bottom: 6px;
+}
+
+.results-empty-sub {
+  font-size: 12px;
+
+  color: var(--text-muted);
+
+  line-height: 1.6;
+}
+
+/* =========================
+   RESULTS HEADER
+========================= */
+
+.results-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+
+  border-bottom: 1px solid var(--border);
+}
+
+.results-identity {
+  display: flex;
+
+  align-items: center;
+
+  gap: 11px;
+}
+
+.results-thumb {
+  width: 54px;
+  height: 54px;
+
+  border-radius: 9px;
+
+  object-fit: cover;
+
+  border: 1px solid var(--border);
+
+  flex-shrink: 0;
+
+  background: var(--bg);
+
+  box-shadow: var(--shadow);
+}
+
+.results-id-label {
+  font-size: 10px;
+
+  color: var(--text-faint);
+
+  margin-bottom: 3px;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.05em;
+
+  font-weight: 600;
+}
+
+.results-id {
+  font-family: ui-monospace, 'SF Mono', monospace;
+
+  font-size: 15px;
+
+  font-weight: 700;
+}
+
+/* =========================
+   SUMMARY
+========================= */
+
+.summary-row {
+  display: grid;
+
+  grid-template-columns: repeat(2, 1fr);
+
+  gap: 10px;
+
+  margin-bottom: 15px;
+}
+
+.summary-chip {
+  padding: 13px;
+
+  border-radius: 9px;
+
+  background: var(--surface-alt);
+
+  border: 1px solid var(--border);
+
+  text-align: left;
+
+  position: relative;
+}
+
+.summary-chip::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 0;
+
+  width: 3px;
+  height: 100%;
+
+  border-radius: 9px 0 0 9px;
+
+  background: var(--accent);
+}
+
+.summary-chip-value {
+  font-family: 'Poppins', 'Inter', sans-serif;
+
+  font-size: 20px;
+
+  font-weight: 800;
+}
+
+.summary-chip-label {
+  font-size: 9.5px;
+
+  color: var(--text-muted);
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.05em;
+
+  margin-top: 2px;
+
+  font-weight: 600;
+}
+
+/* =========================
+   STATUS BADGES
+========================= */
+
+.badge {
+  font-size: 10.5px;
+
+  font-weight: 700;
+
+  padding: 5px 10px;
+
+  border-radius: 999px;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.04em;
+
+  white-space: nowrap;
+}
+
+.badge.pending,
+.badge.processing {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.badge.completed {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.badge.failed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* =========================
+   VERDICT
+========================= */
+
+.verdict-banner {
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: 11px;
+
+  padding: 13px 14px;
+
+  border-radius: 9px;
+
+  margin-bottom: 16px;
+
+  border: 1px solid transparent;
+}
+
+.verdict-banner.accept {
+  background: var(--success-soft);
+  border-color: #c9ebd5;
+}
+
+.verdict-banner.needs_review {
+  background: var(--warning-soft);
+  border-color: #f3dfaa;
+}
+
+.verdict-banner.reject {
+  background: var(--danger-soft);
+  border-color: #f2c8c2;
+}
+
+.verdict-icon {
+  width: 24px;
+  height: 24px;
+
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 12px;
+
+  font-weight: 800;
+
+  flex-shrink: 0;
+}
+
+.verdict-banner.accept .verdict-icon {
+  background: var(--success);
+  color: white;
+}
+
+.verdict-banner.needs_review .verdict-icon {
+  background: var(--warning);
+  color: white;
+}
+
+.verdict-banner.reject .verdict-icon {
+  background: var(--danger);
+  color: white;
+}
+
+.verdict-title {
+  font-family: 'Poppins', 'Inter', sans-serif;
+
+  font-size: 13.5px;
+
+  font-weight: 700;
+
+  margin-bottom: 3px;
+}
+
+.verdict-banner.accept .verdict-title {
+  color: var(--success);
+}
+
+.verdict-banner.needs_review .verdict-title {
+  color: var(--warning);
+}
+
+.verdict-banner.reject .verdict-title {
+  color: var(--danger);
+}
+
+.verdict-reason {
+  font-size: 11.5px;
+
+  color: var(--text-muted);
+
+  line-height: 1.5;
+}
+
+.failure-banner {
+  padding: 12px 14px;
+
+  border-radius: 8px;
+
+  margin-bottom: 16px;
+
+  background: var(--danger-soft);
+
+  color: var(--danger);
+
+  font-size: 12px;
+
+  border: 1px solid #f2c8c2;
+}
+
+/* =========================
+   ANALYSIS CHECKS
+========================= */
+
+.checks-title {
+  font-size: 10.5px;
+
+  font-weight: 700;
+
+  color: var(--text-muted);
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.06em;
+
+  margin-bottom: 7px;
+}
+
+.check-item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px 8px;
+
+  border-bottom: 1px solid #edf0f2;
+
+  transition: background 0.15s ease;
+
+  border-radius: 6px;
+}
+
+.check-item:hover {
+  background: #fafafa;
+}
+
+.check-item:last-child {
+  border-bottom: none;
+}
+
+.check-icon {
+  width: 23px;
+  height: 23px;
+
+  border-radius: 50%;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 10px;
+
+  font-weight: 800;
+}
+
+.check-item.pass .check-icon {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.check-item.fail .check-icon {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.check-name {
+  flex: 0 0 125px;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  text-transform: capitalize;
+}
+
+.check-bar-track {
+  flex: 1;
+
+  height: 7px;
+
+  border-radius: 999px;
+
+  background: #e9ecef;
+
+  overflow: hidden;
+}
+
+.check-bar-fill {
+  height: 100%;
+
+  border-radius: 999px;
+
+  transition: width 0.4s ease;
+}
+
+.check-item.pass .check-bar-fill {
+  background: linear-gradient(90deg, #159447, #38b866);
+}
+
+.check-item.fail .check-bar-fill {
+  background: linear-gradient(90deg, #d93426, #ef675b);
+}
+
+.check-confidence {
+  flex: 0 0 42px;
+
+  text-align: right;
+
+  font-size: 11px;
+
+  color: var(--text-muted);
+
+  font-weight: 600;
+
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================
+   LOADING
+========================= */
+
+.skeleton-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 12px;
+}
+
+.skeleton-bar {
+  height: 12px;
+
+  border-radius: 6px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #eef0f2 25%,
+      #f9fafb 50%,
+      #eef0f2 75%
+    );
+
+  background-size: 200% 100%;
+
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media (max-width: 650px) {
+  .topbar {
+    padding: 0 16px;
+  }
+
+  .brand-sub {
+    display: none;
+  }
+
+  .layout {
+    width: calc(100% - 20px);
+  }
+
+  .results-card {
+    min-height: 450px;
+  }
+
+  .check-name {
+    flex: 0 0 100px;
+  }
+}
+
+/* =========================================================
+   gOGig PROFESSIONAL DASHBOARD OVERRIDE
+   Darker page, compact cards, stronger hierarchy,
+   less empty white space.
+========================================================= */
+
+:root {
+  --bg: #e4e7eb;
+  --surface: #f7f8fa;
+  --surface-alt: #eceff2;
+  --border: #d2d6dc;
+  --text: #111214;
+  --text-muted: #596270;
+  --text-faint: #858d98;
+
+  --accent: #ff6500;
+  --accent-hover: #e65300;
+  --accent-soft: #fff0e6;
+
+  --success: #159447;
+  --success-soft: #e8f6ed;
+
+  --warning: #c47a05;
+  --warning-soft: #fff5d9;
+
+  --danger: #d93426;
+  --danger-soft: #ffefed;
+
+  --radius: 12px;
+  --shadow: 0 2px 7px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 6px 18px rgba(15, 23, 42, 0.09);
+  --shadow-lg: 0 12px 30px rgba(15, 23, 42, 0.11);
+}
+
+html {
+  background: #e4e7eb;
+}
+
+body {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 101, 0, 0.045), transparent 28%),
+    #e4e7eb;
+}
+
+/* Top navigation */
+.topbar {
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #d4d8de;
+  box-shadow: 0 2px 7px rgba(15, 23, 42, 0.06);
+  padding: 0 30px;
+}
+
+.brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.brand-title {
+  font-size: 15px;
+}
+
+.brand-sub {
+  color: #69727e;
+}
+
+.status-pill {
+  background: #eef1f3;
+  border-color: #d7dbe0;
+}
+
+/* Main layout */
+.layout {
+  width: min(1380px, calc(100% - 40px));
+  padding: 18px 0 28px;
+  gap: 18px;
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+/* Cards */
+.card {
+  background: #f7f8fa;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  padding: 16px;
+}
+
+.card::before {
+  width: 3px;
+}
+
+.card + .card {
+  margin-top: 12px;
+}
+
+.card-title {
+  font-size: 14px;
+}
+
+.card-sub {
+  color: #5e6875;
+  margin: 4px 0 11px;
+}
+
+/* Upload area */
+.dropzone {
+  background: #e9edf0;
+  border: 1.5px dashed #c3c8cf;
+  padding: 20px 12px;
+  border-radius: 10px;
+}
+
+.dropzone:hover,
+.dropzone.drag-over {
+  background: #fff0e6;
+  border-color: #ff6500;
+}
+
+.dropzone-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 8px;
+}
+
+.dropzone-text {
+  font-size: 12.5px;
+}
+
+.dropzone-subtext {
+  font-size: 10.5px;
+}
+
+/* Lookup */
+.text-input {
+  background: #e9edf0;
+  border-color: #cfd4da;
+}
+
+.text-input:focus {
+  background: #ffffff;
+}
+
+.btn-secondary {
+  background: #15171a;
+}
+
+.btn-secondary:hover {
+  background: #ff6500;
+}
+
+.recent-chip {
+  background: #e9edf0;
+  border-color: #d0d5db;
+}
+
+/* Results */
+.results-card {
+  min-height: 430px;
+  background: #f4f6f8;
+  padding: 18px;
+}
+
+.results-empty {
+  min-height: 350px;
+}
+
+.results-empty-icon {
+  width: 58px;
+  height: 58px;
+  background: #e8ecef;
+  box-shadow: none;
+}
+
+.results-empty-title {
+  font-size: 15px;
+}
+
+.results-empty-sub {
+  color: #69727e;
+}
+
+/* Result summary */
+.summary-chip {
+  background: #e9edf0;
+  border-color: #d2d7dd;
+}
+
+.check-item {
+  background: #f7f8fa;
+  border-bottom-color: #dde1e5;
+}
+
+.check-item:hover {
+  background: #eceff2;
+}
+
+.check-bar-track {
+  background: #dfe3e7;
+}
+
+/* Make the dashboard denser on normal desktop screens */
+@media (min-width: 901px) {
+  .layout > div:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .layout > div:first-child .card {
+    margin-bottom: 0;
+  }
+
+  .results-card {
+    min-height: 430px;
+  }
+}
+
+/* Smaller screens */
+@media (max-width: 900px) {
+  .layout {
+    width: calc(100% - 24px);
+    padding-top: 14px;
+  }
+}
+
+@media (max-width: 650px) {
+  .topbar {
+    padding: 0 14px;
+  }
+
+  .layout {
+    width: calc(100% - 16px);
+    padding-bottom: 20px;
+  }
+
+  .results-card {
+    min-height: 380px;
+  }
+
+  .results-empty {
+    min-height: 320px;
+  }
+}
+</style>
+</head>
+<body>
+  <div class="brand-strip"></div>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8z" fill="white"/>
+          <circle cx="12" cy="10" r="3" fill="var(--accent)"/>
+        </svg>
+      </div>
+      <div class="brand-text-group">
+        <div class="brand-title">Vehicle Image Analysis</div>
+        <div class="brand-sub">gOGig — field submission pipeline</div>
+      </div>
+    </div>
+    <div class="status-pill"><span class="status-dot"></span> System operational</div>
+  </header>
+
+  <div class="layout">
+    <div>
+      <div class="card">
+        <div class="card-title-row">
+          <div class="card-title-icon">↑</div>
+          <div class="card-title">Submit a photo</div>
+        </div>
+        <p class="card-sub">Upload a vehicle photo to run it through the analysis pipeline. Results appear automatically once processing finishes.</p>
+
+        <label class="dropzone" id="dropzone" for="galleryInput">
+          <div class="dropzone-icon">↑</div>
+          <div class="dropzone-text">Click to upload, or drag and drop</div>
+          <div class="dropzone-subtext">JPEG, PNG or WebP — up to 15MB</div>
+          <input type="file" id="galleryInput" accept="image/*" onchange="handleFileSelect(event)" />
+        </label>
+
+        <label class="camera-link">
+          Or take a photo with your camera
+          <input type="file" accept="image/*" capture="environment" onchange="handleFileSelect(event)" />
+        </label>
+
+        <div id="uploadStatus" class="upload-status"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title-row">
+          <div class="card-title-icon">⌕</div>
+          <div class="card-title">Look up a submission</div>
+        </div>
+        <p class="card-sub">Paste a tracking ID to pull up its results.</p>
+        <label class="field-label" for="imageId">Tracking ID</label>
+        <input type="text" id="imageId" class="text-input" placeholder="e.g. 8f2a91c0-..." autocomplete="off" />
+        <button class="btn-secondary" onclick="lookupManual()">Look up</button>
+        <div id="msg" class="sync-msg"></div>
+        <div class="recent-list" id="recent"></div>
+      </div>
+    </div>
+
+    <div class="card results-card" id="resultsCard">
+      <div class="results-empty" id="resultsEmpty">
+        <div class="results-empty-inner">
+          <div class="results-empty-icon">▢</div>
+          <div class="results-empty-title">No submission selected</div>
+          <div class="results-empty-sub">Upload a photo on the left, or look up a tracking ID, to view its analysis results here.</div>
+        </div>
+      </div>
+      <div id="resultsBody" style="display:none"></div>
+    </div>
+  </div>
+
+<script>
+let pollTimer = null;
+let recentIds = [];
+let previewUrls = {}; // image_id -> object URL, for thumbnail display
+
+function shortId(id) { return id.length > 10 ? id.slice(0, 8) + '…' : id; }
+
+function renderRecent() {
+  const el = document.getElementById('recent');
+  el.innerHTML = recentIds.map(id =>
+    `<div class="recent-chip" onclick="document.getElementById('imageId').value='${id}'; lookupManual();">${id}</div>`
+  ).join('');
+}
+
+function setUploadStatus(text, type) {
+  const el = document.getElementById('uploadStatus');
+  el.textContent = text;
+  el.className = `upload-status show ${type}`;
+}
+
+async function handleFileSelect(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+
+  setUploadStatus('Uploading…', 'info');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/images', { method: 'POST', body: formData });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setUploadStatus(`Upload failed: ${err.detail || res.status}`, 'error');
+      return;
+    }
+    const data = await res.json();
+    previewUrls[data.image_id] = URL.createObjectURL(file);
+    setUploadStatus(`Submitted — tracking #${shortId(data.image_id)}`, 'info');
+    document.getElementById('imageId').value = data.image_id;
+    trackId(data.image_id);
+  } catch (e) {
+    setUploadStatus(`Error: ${e}`, 'error');
+  }
+}
+
+function lookupManual() {
+  const id = document.getElementById('imageId').value.trim();
+  if (!id) return;
+  trackId(id);
+}
+
+async function trackId(id) {
+  if (!recentIds.includes(id)) {
+    recentIds.unshift(id);
+    recentIds = recentIds.slice(0, 5);
+    renderRecent();
+  }
+  if (pollTimer) clearInterval(pollTimer);
+  await poll(id);
+  pollTimer = setInterval(() => poll(id), 2000);
+}
+
+function showResultsBody() {
+  document.getElementById('resultsEmpty').style.display = 'none';
+  document.getElementById('resultsBody').style.display = 'block';
+}
+
+function renderProcessing(status) {
+  showResultsBody();
+  document.getElementById('resultsBody').innerHTML = `
+    <div class="results-header">
+      <div>
+        <div class="results-id-label">Tracking ID</div>
+        <div class="results-id">Processing…</div>
+      </div>
+      <span class="badge ${status}">${status}</span>
+    </div>
+    <div class="skeleton-list">
+      <div class="skeleton-bar" style="width:100%"></div>
+      <div class="skeleton-bar" style="width:85%"></div>
+      <div class="skeleton-bar" style="width:92%"></div>
+      <div class="skeleton-bar" style="width:70%"></div>
+    </div>`;
+}
+
+const VERDICT_META = {
+  accept:        { icon: '✓', title: 'Accepted' },
+  needs_review:  { icon: '!', title: 'Needs review' },
+  reject:        { icon: '✕', title: 'Rejected' },
+};
+
+const CHECK_ICONS = {
+  blur: '◎', brightness: '☀', screenshot: '▢',
+  tamper: '⛨', plate_format: '#', duplicate: '⧉',
+};
+
+function renderTicket(id, data) {
+  if (data.status === 'pending' || data.status === 'processing') {
+    renderProcessing(data.status);
+    return;
+  }
+
+  showResultsBody();
+
+  const rows = data.checks.map(c => `
+    <div class="check-item ${c.passed ? 'pass' : 'fail'}">
+      <div class="check-icon">${CHECK_ICONS[c.check_name] || (c.passed ? '✓' : '✕')}</div>
+      <div class="check-name">${c.check_name.replace('_', ' ')}</div>
+      <div class="check-bar-track"><div class="check-bar-fill" style="width:${(c.confidence * 100).toFixed(0)}%"></div></div>
+      <div class="check-confidence">${(c.confidence * 100).toFixed(0)}%</div>
+    </div>`).join('');
+
+  const passedCount = data.checks.filter(c => c.passed).length;
+  const avgConfidence = data.checks.length
+    ? Math.round(100 * data.checks.reduce((s, c) => s + c.confidence, 0) / data.checks.length)
+    : 0;
+
+  const summaryHtml = data.checks.length ? `
+    <div class="summary-row">
+      <div class="summary-chip">
+        <div class="summary-chip-value">${passedCount}/${data.checks.length}</div>
+        <div class="summary-chip-label">Checks passed</div>
+      </div>
+      <div class="summary-chip">
+        <div class="summary-chip-value">${avgConfidence}%</div>
+        <div class="summary-chip-label">Avg. confidence</div>
+      </div>
+    </div>` : '';
+
+  let verdictHtml = '';
+  if (data.recommendation && VERDICT_META[data.recommendation]) {
+    const meta = VERDICT_META[data.recommendation];
+    verdictHtml = `
+      <div class="verdict-banner ${data.recommendation}">
+        <div class="verdict-icon">${meta.icon}</div>
+        <div>
+          <div class="verdict-title">${meta.title}</div>
+          <div class="verdict-reason">${data.reasoning}</div>
+        </div>
+      </div>`;
+  }
+
+  const failureHtml = data.failure_reason
+    ? `<div class="failure-banner">Processing failed: ${data.failure_reason}</div>` : '';
+
+  const thumbHtml = previewUrls[id]
+    ? `<img class="results-thumb" src="${previewUrls[id]}" alt="Uploaded submission" />`
+    : '';
+
+  document.getElementById('resultsBody').innerHTML = `
+    <div class="results-header">
+      <div class="results-identity">
+        ${thumbHtml}
+        <div>
+          <div class="results-id-label">Tracking ID</div>
+          <div class="results-id">#${shortId(id)}</div>
+        </div>
+      </div>
+      <span class="badge ${data.status}">${data.status}</span>
+    </div>
+    ${summaryHtml}
+    ${verdictHtml}
+    ${failureHtml}
+    ${rows ? `<div class="checks-title">Analysis checks</div><div>${rows}</div>` : ''}
+  `;
+}
+
+async function poll(id) {
+  const msg = document.getElementById('msg');
+  try {
+    const res = await fetch(`/images/${id}/results`);
+    if (!res.ok) { msg.textContent = `Lookup failed (${res.status})`; return; }
+    const data = await res.json();
+    msg.textContent = `Last synced ${new Date().toLocaleTimeString()}`;
+    if (data.status === 'completed' || data.status === 'failed') {
+      if (pollTimer) clearInterval(pollTimer);
+    }
+    renderTicket(id, data);
+  } catch (e) {
+    msg.textContent = `Error: ${e}`;
+  }
+}
+
+// Drag and drop support
+const dropzone = document.getElementById('dropzone');
+['dragenter', 'dragover'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag-over'); })
+);
+['dragleave', 'drop'].forEach(evt =>
+  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag-over'); })
+);
+dropzone.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileSelect({ target: { files: [file], value: '' } });
+});
+</script>
+</body>
+</html>
