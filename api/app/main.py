@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="gOGig Vehicle Image Analysis Pipeline", lifespan=lifespan)
+
 from fastapi.responses import RedirectResponse
 
 # ...
