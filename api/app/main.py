@@ -36,6 +36,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="gOGig Vehicle Image Analysis Pipeline", lifespan=lifespan)
+from fastapi.responses import RedirectResponse
+
+# ...
+
+app = FastAPI(
+    title="gOGig Vehicle Image Analysis Pipeline",
+    lifespan=lifespan
+)
+
+@app.get("/")
+def root():
+    return RedirectResponse(url="/dashboard/")
+
+
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
