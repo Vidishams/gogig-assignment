@@ -16,7 +16,7 @@ from common.models import Image, AnalysisResult, ImageStatus
 from common.verdict import compute_verdict
 from .schemas import UploadResponse, StatusResponse, ResultsResponse, CheckResult
 from .queue import image_queue
-from worker.tasks import process_image
+from gogig_worker.tasks import process_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gogig-api")
