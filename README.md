@@ -1,188 +1,619 @@
 # gOGig Vehicle Image Analysis Pipeline
 
-Backend system that accepts vehicle images uploaded from the field, analyzes
-them asynchronously for common quality/authenticity issues, and exposes
-status + results APIs.
+A backend system that accepts vehicle images uploaded from the field, analyzes them asynchronously for common quality and authenticity issues, and provides status and analysis results through APIs.
+
+## Features
+
+- Asynchronous image processing
+- FastAPI backend
+- Redis + RQ background jobs
+- PostgreSQL database
+- Dockerized services
+- Vehicle image quality checks
+- Blur detection
+- Brightness detection
+- Screenshot detection
+- Tamper detection
+- Indian number plate format detection
+- Duplicate image detection
+- Confidence scores for every check
+- Overall `accept`, `needs_review`, or `reject` recommendation
+- Web dashboard for uploading and viewing results
+- Rate limiting
+- Background job retry handling
+
+---
 
 ## Architecture
 
-**Service flow**
-1. Client `POST`s an image to the API.
-2. API validates the file, saves it to disk, writes a DB row with
-   `status=pending`, enqueues a job on Redis/RQ, and returns the image ID
-   immediately (does not wait for analysis).
-3. A separate worker process pulls the job off the queue, sets
-   `status=processing`, runs 6 checks, writes results to the DB, and sets
-   `status=completed` or `status=failed`.
-4. Client polls `GET /images/{id}/status` and `GET /images/{id}/results`
-   at any point after upload.
+```text
+Client
+   |
+   | POST /images
+   v
+FastAPI API
+   |
+   | Save image + create DB record
+   |
+   v
+Redis / RQ Queue
+   |
+   v
+Background Worker
+   |
+   | Run 6 analysis checks
+   |
+   v
+PostgreSQL
+   |
+   v
+Results API / Dashboard
+```
 
-**Processing flow (worker)**
-Each check runs independently and is wrapped in its own try/except, so one
-check erroring out doesn't abort the whole job or crash the worker — it's
-recorded as a failed check with an error detail instead. Checks run:
-`blur -> brightness -> screenshot -> tamper -> plate_format -> duplicate`.
+The API does not wait for image processing to finish.
 
-**Queue strategy**
-Redis + RQ was chosen over Celery/SQS/RabbitMQ because it needed zero
-infra beyond a Redis container, and RQ's built-in `Retry(max=2,
-interval=[10, 30])` covers transient failures (e.g. a momentary DB
-connection blip) without hand-rolling retry logic. At gOGig's actual
-scale (many workers uploading concurrently) this would need to move to
-something with better horizontal scaling guarantees (SQS/Celery +
-autoscaled workers), but for this assignment's scope RQ is the right
-size.
+Instead, it immediately returns an image ID and the worker processes the image in the background.
 
-**Major design decisions**
-- Upload API and worker are separate Docker services so they scale
-  independently (add worker replicas without touching the API).
-- `common/` is a shared package (DB models, checks) imported by both
-  api and worker, so there is one source of truth for the schema and
-  no duplicated check logic between services.
-- Every check returns a confidence score + structured details, not just
-  pass/fail, so a human reviewer downstream can triage by how *sure* the
-  system is, not just what it flagged. Individual check results are then
-  aggregated into one overall `recommendation` (`accept` /
-  `needs_review` / `reject`) with a `reasoning` string — see
-  `common/verdict.py`. Critical checks (tamper, duplicate) failing with
-  high confidence trigger an outright reject; everything else that fails
-  routes to `needs_review` rather than auto-rejecting, since the
-  assignment explicitly does not expect perfect ML accuracy.
-- Duplicate detection uses perceptual hashing (`imagehash.phash`)
-  compared against every existing image's stored hash. This is O(n) per
-  upload — fine for a take-home, but noted as a scalability concern below.
-- Rate limiting (10 uploads/minute per IP, via `slowapi`) protects the
-  upload endpoint from being flooded, since bad/duplicate uploads
-  directly cost worker time.
-- A minimal static dashboard (`/dashboard`) polls the results endpoint
-  and renders check results + the overall verdict as a table, so a
-  reviewer can see the pipeline work without running curl commands.
+---
 
-## Database schema
-- `images`: id, filename, storage_path, phash, status, failure_reason,
-  uploaded_at, processed_at
-- `analysis_results`: id, image_id (FK), check_name, passed, confidence,
-  details (JSON), created_at
+## Processing Flow
 
-## Overall verdict
-`GET /images/{id}/results` includes `recommendation` (`accept` /
-`needs_review` / `reject`) and `reasoning`, computed by aggregating all
-6 check results (`common/verdict.py`) once processing completes. This
-is deliberately conservative: only high-confidence failures on critical
-checks (tamper, duplicate) auto-reject; everything else routes to
-`needs_review` for a human to decide, matching the assignment's framing
-that the goal is "structuring uncertainty," not pretending to be
-perfectly accurate.
+```text
+Upload Image
+     |
+     v
+Validate Image
+     |
+     v
+Save Image
+     |
+     v
+Create DB Record
+     |
+     v
+Add Job to Redis Queue
+     |
+     v
+Worker Picks Job
+     |
+     v
+Run Image Analysis
+     |
+     +--> Blur
+     |
+     +--> Brightness
+     |
+     +--> Screenshot
+     |
+     +--> Tamper
+     |
+     +--> Plate Format
+     |
+     +--> Duplicate
+     |
+     v
+Store Results
+     |
+     v
+Generate Overall Verdict
+     |
+     v
+Completed
+```
 
-## The 6 checks
+---
+
+## Image Analysis Checks
+
 | Check | Method |
 |---|---|
 | Blur | Laplacian variance of grayscale image |
 | Brightness | Mean grayscale pixel intensity |
-| Screenshot / photo-of-photo | Missing camera EXIF + common screen resolution |
-| Tamper | Error Level Analysis (JPEG resave diff) |
-| Plate format | Tesseract OCR + Indian plate regex |
-| Duplicate | Perceptual hash (pHash) vs. all stored images, Hamming distance <= 5 |
+| Screenshot | Missing EXIF + common screen resolution |
+| Tamper | Error Level Analysis (ELA) |
+| Plate Format | Tesseract OCR + Indian plate regex |
+| Duplicate | Perceptual hashing (pHash) |
 
-## AI Usage Disclosure
+---
 
-- Used Claude to scaffold the initial FastAPI/RQ/SQLAlchemy project
-  structure and the boilerplate for the three endpoints.
-- Used Claude to draft the Error Level Analysis (tamper) check. The
-  first version resaved at JPEG quality 95 and flagged almost every real
-  photo as tampered because the ELA score baseline was too close to
-  natural JPEG re-compression noise — lowered quality to 90 and raised
-  the threshold from 3.0 to 8.0 after testing against the sample images,
-  which brought false positives on genuine (untampered) photos to zero
-  in local testing.
-- Used Claude to draft the screenshot-detection heuristic. Initial
-  version only checked for missing EXIF, which flagged too many genuine
-  camera photos (many phones strip EXIF metadata by default) —
-  corrected by requiring *both* missing EXIF *and* a common screen
-  resolution match before flagging, reducing false positives.
-- Manually validated every check by running it against the 3 provided
-  sample images before wiring it into the worker pipeline (see
-  `test_output/` for raw results).
-- Did not use AI-generated code for the DB schema or Docker Compose
-  networking — wrote those directly since correctness there is easy to
-  verify by just running `docker compose up`.
+## 1. Blur Detection
 
-## Trade-offs
+The image is converted to grayscale and Laplacian variance is calculated.
 
-**Intentionally simplified**
-- Local disk storage instead of S3/cloud storage.
-- Duplicate detection scans all stored hashes linearly instead of using
-  an indexed similarity search.
-- No authentication/authorization on the API.
-- Plate OCR uses a single Tesseract pass with no image preprocessing
-  (deskew, contrast enhancement) beyond grayscale conversion.
+A low variance indicates that the image may be blurry.
 
-**Would improve with more time**
-- Move duplicate detection to a proper vector/hash index (e.g. FAISS or
-  a locality-sensitive hashing table) so it doesn't degrade linearly
-  with dataset size.
-- Add a lightweight status dashboard (bonus item) so results are
-  browsable without hitting the API directly.
-- Preprocess plates before OCR (crop to plate region via a small
-  detector, deskew) — current OCR confidence is capped at 0.7 precisely
-  because a full-frame OCR pass on a whole vehicle photo is noisy.
+```text
+Image
+  ↓
+Grayscale
+  ↓
+Laplacian Variance
+  ↓
+Blur Confidence
+```
 
-**Scalability concerns**
-- Single worker replica by default in docker-compose; horizontal scale
-  is just `docker compose up --scale worker=N` since workers are
-  stateless and coordinate purely through the Redis queue.
-- Duplicate check's linear scan becomes the bottleneck first as image
-  volume grows — flagged above as the top scalability fix.
+---
 
-**Failure handling**
-- Per-check try/except means partial results are always available even
-  if one check fails.
-- RQ retries transient job failures twice with backoff before marking
-  the image `failed` with a stored reason string.
-- Upload validation (content-type, size, non-empty) happens synchronously
-  at the API layer, before a job is ever enqueued, so bad uploads never
-  reach the queue.
+## 2. Brightness Detection
 
-## Running instructions
+The average grayscale pixel intensity is calculated.
+
+Images that are too dark or too bright can be flagged for review.
+
+---
+
+## 3. Screenshot Detection
+
+The system checks for:
+
+- Missing camera EXIF metadata
+- Common screen resolutions
+
+Both conditions are considered together to reduce false positives.
+
+---
+
+## 4. Tamper Detection
+
+Error Level Analysis (ELA) is used to identify unusual compression differences that may indicate image manipulation.
+
+The implementation was tested and tuned against the provided sample images to reduce false positives.
+
+---
+
+## 5. Plate Format Detection
+
+Tesseract OCR is used to extract text from the vehicle image.
+
+The extracted text is then checked against supported Indian vehicle number formats.
+
+Example:
+
+```text
+MH12AB1234
+```
+
+BH-series format is also supported:
+
+```text
+22BH1234AA
+```
+
+Diplomatic, defense, and temporary dealer plate formats are outside the scope of this assignment.
+
+---
+
+## 6. Duplicate Detection
+
+Duplicate images are detected using perceptual hashing (`pHash`).
+
+The hash of the uploaded image is compared with hashes of previously uploaded images.
+
+A Hamming distance of `<= 5` is considered a duplicate.
+
+This allows the system to detect when the same image is uploaded again.
+
+---
+
+## Overall Verdict
+
+After all six checks are completed, the results are combined into one overall recommendation.
+
+Possible recommendations are:
+
+```text
+ACCEPT
+NEEDS REVIEW
+REJECT
+```
+
+The system is intentionally conservative.
+
+High-confidence failures in critical checks such as tampering or duplicate detection can result in `REJECT`.
+
+Other failures are generally sent to `NEEDS REVIEW` so that a human reviewer can make the final decision.
+
+---
+
+## Example Result
+
+```text
+Status: Completed
+
+Checks Passed: 4/6
+Average Confidence: 75%
+
+Recommendation: Needs Review
+```
+
+The results API also provides a reasoning message explaining why the image received the recommendation.
+
+---
+
+## Database
+
+### `images`
+
+Stores uploaded image information.
+
+```text
+id
+filename
+storage_path
+phash
+status
+failure_reason
+uploaded_at
+processed_at
+```
+
+### `analysis_results`
+
+Stores individual check results.
+
+```text
+id
+image_id
+check_name
+passed
+confidence
+details
+created_at
+```
+
+---
+
+## Failure Handling
+
+Each analysis check runs independently.
+
+If one check fails, the remaining checks can still continue.
+
+```text
+Check 1 → Pass
+Check 2 → Pass
+Check 3 → Error
+Check 4 → Pass
+Check 5 → Fail
+Check 6 → Pass
+```
+
+The failed check is stored with its error details instead of stopping the complete analysis.
+
+RQ also retries transient worker failures up to two times.
+
+---
+
+## Rate Limiting
+
+The upload API is protected with rate limiting.
+
+```text
+10 uploads / minute / IP
+```
+
+This prevents excessive uploads from consuming worker resources.
+
+---
+
+## Technology Stack
+
+| Component | Technology |
+|---|---|
+| Backend | FastAPI |
+| Background Jobs | RQ |
+| Queue | Redis |
+| Database | PostgreSQL |
+| ORM | SQLAlchemy |
+| OCR | Tesseract |
+| Image Processing | Pillow / OpenCV |
+| Duplicate Detection | imagehash / pHash |
+| Containerization | Docker |
+| Testing | Pytest |
+| Dashboard | HTML, CSS, JavaScript |
+
+---
+
+## Project Architecture
+
+```text
+gogig-assignment/
+│
+├── api/
+│
+├── worker/
+│
+├── common/
+│   ├── models.py
+│   ├── checks/
+│   └── verdict.py
+│
+├── tests/
+│
+├── scripts/
+│   └── demo.py
+│
+├── test_output/
+│
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+├── requirements-dev.txt
+└── README.md
+```
+
+---
+
+## Running the Project
+
+Start the complete application using Docker:
 
 ```bash
 docker compose up --build
 ```
 
-- API available at `http://localhost:8000`
-- Interactive API docs (auto-generated): `http://localhost:8000/docs`
-- Results dashboard (no curl needed): `http://localhost:8000/dashboard`
-- `POST /images` (multipart form, field name `file`) — upload an image
-- `GET /images/{image_id}/status` — check processing status
-- `GET /images/{image_id}/results` — fetch check results, verdict, or failure reason
+The API will be available at:
+
+```text
+http://localhost:8000
+```
+
+---
+
+## Dashboard
+
+Open:
+
+```text
+http://localhost:8000/dashboard
+```
+
+The dashboard allows you to:
+
+- Upload vehicle images
+- Track processing status
+- Look up submissions
+- View analysis results
+- View confidence scores
+- View the final recommendation
+
+---
+
+## API Documentation
+
+FastAPI interactive documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+---
+
+## API Endpoints
+
+### Upload Image
+
+```http
+POST /images
+```
 
 Example:
+
 ```bash
 curl -F "file=@sample1.jpg" http://localhost:8000/images
+```
+
+---
+
+### Check Status
+
+```http
+GET /images/{image_id}/status
+```
+
+Example:
+
+```bash
 curl http://localhost:8000/images/<image_id>/status
+```
+
+---
+
+### Get Results
+
+```http
+GET /images/{image_id}/results
+```
+
+Example:
+
+```bash
 curl http://localhost:8000/images/<image_id>/results
 ```
 
-### Running tests
+---
+
+## Running Tests
+
+Install dependencies:
+
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Run tests:
+
+```bash
 pytest tests/ -v
 ```
-Tests run against an in-memory SQLite DB with the queue mocked out, so
-they don't require Docker/Redis/Postgres to be running.
 
-### Running the demo/seed script
-With the stack up (`docker compose up`), upload the 3 sample images and
-print full results for each — this is what generates the required test
-output:
+The tests use an in-memory SQLite database and mock the queue, so Docker, Redis, and PostgreSQL do not need to be running for the unit tests.
+
+---
+
+## Running the Demo
+
+Start the application:
+
+```bash
+docker compose up
+```
+
+Then run:
+
 ```bash
 pip install -r requirements-dev.txt
+```
+
+Run the demo script:
+
+```bash
 python scripts/demo.py http://localhost:8000 sample1.jpg sample2.jpg sample3.jpg
 ```
 
+This uploads the sample images and prints their analysis results.
+
+---
+
+## Testing
+
+The system was tested using the provided vehicle images.
+
+Testing included:
+
+- Genuine vehicle images
+- Different image qualities
+- Duplicate image uploads
+- Blur detection
+- Brightness detection
+- Screenshot detection
+- Tamper detection
+- Number plate detection
+- Overall verdict generation
+
+The same image was also uploaded again to verify duplicate detection.
+
+When the same image is uploaded again, the perceptual hash matches the previously stored image and the duplicate check flags it accordingly.
+
+---
+
+## AI Usage Disclosure
+
+Claude was used during development for:
+
+- Initial FastAPI/RQ/SQLAlchemy project scaffolding
+- API endpoint boilerplate
+- Initial Error Level Analysis implementation
+- Initial screenshot detection implementation
+
+The generated approaches were manually tested and modified.
+
+For example, the initial screenshot detection relied only on missing EXIF metadata. This caused false positives because some genuine camera images do not contain EXIF metadata.
+
+The logic was improved to consider both missing EXIF metadata and common screen resolutions.
+
+The tamper detection implementation was also tested against the provided sample images and adjusted to reduce false positives.
+
+The database schema and Docker Compose networking were implemented directly.
+
+---
+
+## Trade-offs
+
+The following areas were intentionally simplified for the assignment:
+
+### Local Storage
+
+Images are stored on local disk instead of cloud storage such as Amazon S3.
+
+### Duplicate Search
+
+Duplicate detection currently compares the new pHash against all stored hashes.
+
+This is:
+
+```text
+O(n)
+```
+
+per upload.
+
+### Authentication
+
+Authentication and authorization are not implemented.
+
+### Plate OCR
+
+Plate OCR uses a single Tesseract pass without advanced plate-region detection or preprocessing.
+
+---
+
+## Future Improvements
+
+Possible production improvements include:
+
+- Move image storage to S3 or another object-storage service
+- Use an indexed similarity search for duplicate detection
+- Add authentication and authorization
+- Improve number plate detection
+- Crop and preprocess the number plate before OCR
+- Add advanced image tamper detection
+- Add autoscaling for workers
+- Improve monitoring and logging
+- Add production-grade queue infrastructure
+
+---
+
+## Scalability
+
+Workers are stateless and communicate through Redis.
+
+Multiple workers can be started using:
+
+```bash
+docker compose up --scale worker=3
+```
+
+The main scalability concern is the current linear duplicate search.
+
+At large image volumes, duplicate detection should be replaced with a proper similarity/hash index.
+
+---
+
 ## Assumptions
-- "Indian vehicle number format" validated against the standard
-  `SS DD LLL DDDD` pattern (e.g. `MH12AB1234`) and the newer BH-series
-  format (e.g. `22BH1234AA`); diplomatic, defense, and temporary dealer
-  plate formats are out of scope for this assignment.
-- Images are JPEG/PNG/WebP, max 15MB.
+
+- Supported image formats are JPEG, PNG, and WebP.
+- Maximum image size is 15 MB.
+- Indian vehicle number plates are validated against supported standard and BH-series formats.
+- Diplomatic, defense, and temporary dealer plates are outside the scope.
+- Local disk storage is sufficient for this assignment.
+- Automated results are intended to assist human review rather than replace it.
+
+---
+
+## Conclusion
+
+The gOGig Vehicle Image Analysis Pipeline provides an asynchronous system for processing vehicle images uploaded from the field.
+
+It combines six independent image checks:
+
+```text
+Blur
+Brightness
+Screenshot
+Tamper
+Plate Format
+Duplicate
+```
+
+The results are combined into a conservative recommendation:
+
+```text
+ACCEPT
+NEEDS REVIEW
+REJECT
+```
+
+The system provides confidence scores and structured analysis results so that reviewers can understand why an image was flagged.
+
+The architecture is lightweight for the assignment while providing a clear path toward production scalability.
