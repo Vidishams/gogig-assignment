@@ -2,10 +2,10 @@ import uuid
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Float, Boolean, JSON, Enum
+from sqlalchemy import Column, String, DateTime, ForeignKey, Float, Boolean, JSON, Enum, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID
 
-from common.database import Base
+from .database import Base
 
 
 class ImageStatus(str, enum.Enum):
@@ -19,8 +19,9 @@ class Image(Base):
     __tablename__ = "images"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    filename = Column(String, nullable=False)
-    storage_path = Column(String, nullable=False)
+    filename = Column(String, nullable=True)
+    content_type = Column(String, nullable=True)
+    image_data = Column(LargeBinary, nullable=False)
     phash = Column(String, nullable=True, index=True)
     status = Column(Enum(ImageStatus), default=ImageStatus.pending, nullable=False)
     failure_reason = Column(String, nullable=True)

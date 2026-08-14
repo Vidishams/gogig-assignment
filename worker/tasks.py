@@ -1,4 +1,6 @@
+import os
 import logging
+import tempfile
 from datetime import datetime, timezone
 
 from common.database import SessionLocal
@@ -8,13 +10,12 @@ from common.checks import run_all_checks
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gogig-worker")
 
+CONTENT_TYPE_EXT = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+
 
 def process_image(image_id: str):
-    """Entry point invoked by RQ. Runs all checks against the image and
-    writes results back to the database. Wrapped so that any unexpected
-    exception marks the job 'failed' with a reason instead of crashing
-    the worker or leaving the image stuck in 'processing'."""
     db = SessionLocal()
+    tmp_path = None
     try:
         image = db.query(Image).filter(Image.id == image_id).first()
         if not image:
@@ -25,7 +26,12 @@ def process_image(image_id: str):
         db.commit()
         logger.info(f"Processing image {image_id}")
 
-        results, phash = run_all_checks(image.storage_path, db, image.id)
+        ext = CONTENT_TYPE_EXT.get(image.content_type, ".jpg")
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp.write(image.image_data)
+            tmp_path = tmp.name
+
+        results, phash = run_all_checks(tmp_path, db, image.id)
 
         for r in results:
             db.add(AnalysisResult(
@@ -51,6 +57,8 @@ def process_image(image_id: str):
             image.failure_reason = str(e)
             image.processed_at = datetime.now(timezone.utc)
             db.commit()
-        raise  # re-raise so RQ's retry mechanism can kick in
+        raise
     finally:
         db.close()
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)

@@ -18,15 +18,12 @@ from PIL.ExifTags import TAGS
 import imagehash
 import pytesseract
 
-# Common screen resolutions - a strong signal of "screenshot" rather than
-# a camera photo, when combined with missing EXIF.
 COMMON_SCREEN_RESOLUTIONS = {
     (1920, 1080), (1080, 1920), (1366, 768), (768, 1366),
     (1280, 720), (720, 1280), (2340, 1080), (1080, 2340),
 }
 
 INDIAN_PLATE_REGEX = re.compile(r"^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$")
-# BH-series (Bharat series), e.g. 22BH1234AA - year + BH + number + 2 letters
 BH_SERIES_PLATE_REGEX = re.compile(r"^[0-9]{2}BH[0-9]{4}[A-Z]{1,2}$")
 
 
@@ -43,7 +40,6 @@ def check_blur(image_path: str) -> dict:
     variance = cv2.Laplacian(img, cv2.CV_64F).var()
     threshold = 100.0
     is_sharp = variance >= threshold
-    # confidence: how far from the threshold, scaled
     confidence = _clamp(abs(variance - threshold) / threshold)
     return {
         "check_name": "blur",
@@ -80,19 +76,23 @@ def check_brightness(image_path: str) -> dict:
 
 
 def check_duplicate(image_path: str, db_session, exclude_image_id=None) -> dict:
-    from common.models import Image  # local import avoids circulars in worker context
+    """Pulls only id + phash columns (via with_entities), not full rows -
+    a full-row fetch would also pull each image's image_data binary
+    column, which is unnecessary here and can be slow/memory-heavy as
+    the table grows."""
+    from common.models import Image
 
     phash = str(imagehash.phash(PILImage.open(image_path)))
 
-    query = db_session.query(Image).filter(Image.phash.isnot(None))
+    query = db_session.query(Image.id, Image.phash).filter(Image.phash.isnot(None))
     if exclude_image_id is not None:
         query = query.filter(Image.id != exclude_image_id)
 
     closest_distance = None
-    for existing in query.all():
+    for _id, existing_phash in query.all():
         try:
-            dist = imagehash.hex_to_hash(phash) - imagehash.hex_to_hash(existing.phash)
-        except ValueError:
+            dist = imagehash.hex_to_hash(phash) - imagehash.hex_to_hash(existing_phash)
+        except (ValueError, TypeError):
             continue
         if closest_distance is None or dist < closest_distance:
             closest_distance = dist
@@ -134,9 +134,6 @@ def check_screenshot(image_path: str) -> dict:
 
 
 def check_tamper(image_path: str) -> dict:
-    """Error Level Analysis: resave at known JPEG quality and diff against
-    the original. Regions that were edited compress differently and show
-    up as bright patches in the ELA diff."""
     try:
         original = PILImage.open(image_path).convert("RGB")
         buffer = io.BytesIO()
@@ -179,16 +176,13 @@ def check_plate(image_path: str) -> dict:
     return {
         "check_name": "plate_format",
         "passed": bool(is_valid),
-        "confidence": 0.7 if is_valid else 0.4,  # OCR is noisy, keep confidence modest
+        "confidence": 0.7 if is_valid else 0.4,
         "details": {"ocr_raw_text": raw_text.strip(), "cleaned_candidate": cleaned,
                      "matched_format": matched_format},
     }
 
 
 def run_all_checks(image_path: str, db_session, image_id) -> list[dict]:
-    """Runs every check, isolating failures so one bad check doesn't kill
-    the whole job. Returns list of result dicts. Also updates the image's
-    stored phash as a side effect of the duplicate check."""
     results = []
 
     for fn in (check_blur, check_brightness, check_screenshot, check_tamper, check_plate):

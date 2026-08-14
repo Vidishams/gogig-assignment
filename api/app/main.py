@@ -1,28 +1,25 @@
-import os
 import uuid
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from rq import Retry
+import os
 
 from common.database import Base, engine, get_db
 from common.models import Image, AnalysisResult, ImageStatus
 from common.verdict import compute_verdict
 from .schemas import UploadResponse, StatusResponse, ResultsResponse, CheckResult
 from .queue import image_queue
-from worker.tasks import process_image
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gogig-api")
-
-STORAGE_DIR = os.getenv("STORAGE_DIR", "/tmp/storage")
-os.makedirs(STORAGE_DIR, exist_ok=True)
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024  # 15 MB
@@ -36,20 +33,15 @@ async def lifespan(app: FastAPI):
     yield
 
 
-
-from fastapi.responses import RedirectResponse
-
-# ...
-
 app = FastAPI(
     title="gOGig Vehicle Image Analysis Pipeline",
     lifespan=lifespan
 )
 
+
 @app.get("/")
 def root():
     return RedirectResponse(url="/dashboard/")
-
 
 
 app.state.limiter = limiter
@@ -78,27 +70,28 @@ async def upload_image(request: Request, file: UploadFile = File(...), db: Sessi
         raise HTTPException(400, "Empty file")
 
     image_id = uuid.uuid4()
-    ext = os.path.splitext(file.filename or "")[1] or ".jpg"
-    storage_path = os.path.join(STORAGE_DIR, f"{image_id}{ext}")
 
-    with open(storage_path, "wb") as f:
-        f.write(contents)
-
+    # Bytes stored in the row itself - api and worker are separate
+    # Render services with no shared disk, so a local file path would
+    # never be visible to the worker.
     image = Image(
         id=image_id,
         filename=file.filename,
-        storage_path=storage_path,
+        content_type=file.content_type,
+        image_data=contents,
         status=ImageStatus.pending,
     )
     db.add(image)
     db.commit()
 
+    # Enqueue by string - the worker resolves and imports this itself,
+    # inside its own container. Do NOT import process_image here.
     image_queue.enqueue(
-    process_image,
-    str(image_id),
-    job_timeout=120,
-    retry=Retry(max=2, interval=[10, 30]),
-)
+        "worker.tasks.process_image",
+        str(image_id),
+        job_timeout=120,
+        retry=Retry(max=2, interval=[10, 30]),
+    )
     logger.info(f"Enqueued image {image_id} for analysis")
 
     return UploadResponse(image_id=image_id, status=image.status.value)
