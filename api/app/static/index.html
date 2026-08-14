@@ -1301,6 +1301,145 @@ body {
     min-height: 320px;
   }
 }
+
+/* =========================
+   FOOTER
+========================= */
+
+.footer {
+  width: 100%;
+  background: #ffffff;
+  border-top: 1px solid #d4d8de;
+  margin-top: 10px;
+  padding: 18px 30px;
+  box-shadow: 0 -2px 7px rgba(15, 23, 42, 0.04);
+}
+
+.footer-inner {
+  width: min(1380px, calc(100% - 40px));
+  margin: 0 auto;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.footer-brand {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111214;
+}
+
+.footer-brand span {
+  color: #ff6500;
+}
+
+.footer-text {
+  font-size: 11px;
+  color: #69727e;
+  text-align: right;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.footer-links a {
+  font-size: 11px;
+  color: #596270;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s ease;
+}
+
+.footer-links a:hover {
+  color: #ff6500;
+}
+
+@media (max-width: 650px) {
+  .footer {
+    padding: 16px 14px;
+  }
+
+  .footer-inner {
+    width: 100%;
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+  }
+
+  .footer-text {
+    text-align: center;
+  }
+
+  .footer-links {
+    gap: 12px;
+  }
+}
+/* =========================
+   TRANSLUCENT BLACK HEADER
+========================= */
+
+.topbar {
+  background: rgba(0, 0, 0, 0.72);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.brand-title {
+  color: #ffffff;
+}
+
+.brand-sub {
+  color: #ffffff;
+}
+
+.status-pill {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+
+/* =========================
+   TRANSLUCENT BLACK FOOTER
+========================= */
+
+.footer {
+  background: rgba(0, 0, 0, 0.72);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+
+  color: #ffffff;
+
+  padding: 22px 30px;
+  text-align: center;
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.footer-title {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.footer-text {
+  color: #ffffff;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.footer-accent {
+  color: #ff6500;
+}
 </style>
 </head>
 <body>
@@ -1569,5 +1708,25 @@ dropzone.addEventListener('drop', e => {
   if (file) handleFileSelect({ target: { files: [file], value: '' } });
 });
 </script>
+
+<footer class="footer">
+  <div class="footer-inner">
+
+    <div class="footer-brand">
+      gOGig <span>•</span> Vehicle Image Analysis
+    </div>
+
+    <div class="footer-links">
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+      <a href="#">Support</a>
+    </div>
+
+    <div class="footer-text">
+      © 2026 gOGig. All rights reserved.
+    </div>
+
+  </div>
+</footer>
 </body>
 </html>
